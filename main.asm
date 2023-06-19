@@ -1,4 +1,6 @@
 .include "utils.asm"
+.data
+
 .text
 .globl main
 
@@ -9,4 +11,5 @@ main:
 	
 	jal main_menu
 	
+
 	

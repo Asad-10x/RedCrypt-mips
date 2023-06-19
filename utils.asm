@@ -11,17 +11,14 @@
 #  clear_screen - 		  Clears the output from the screen `system("clear/cls");`
 #  Invalid_input - 		  Prints a prompt on screen to notify user if he made the wrong choice
 #  sleep - 				  press any key to continue
-#  append_path -                Append working directory path with a file name
 #  encryption_subroutine -      Encrypt data given by user
 #  decryption_subroutine -	  Decrypt the encrypted data. 
 #  exit_program -               Call syscall with a service 10 to exit the program
-#  get_current_directory -      Retrieves the current working directory path
-#  manual_input -               Prompts user to Enter the input Manually
 #  new_file -                   Creates and saves the manual input in a file
 #  print_string - 		  Prints the data(string) on output screen
 #  print_int - 			  Prints the data(integer) on output screen
 #  main_menu - 			  Prints the menu of this program and let's user choose what they wanna do
-#  
+#
 # subprogram:		welcome_script
 # author:			Asad Ali
 # purpose:			Print an introductry output when program starts
@@ -29,7 +26,8 @@
 # output:			-
 # side effects: 		-
 .data
-welcome: .asciiz "\nWelcome to SecureCrypt.\n"
+welcome: .asciiz "\nWelcome to RedCrypt.\n"
+nline: .asciiz "\n"
 .text
 welcome_script:
 	# print introduction
@@ -99,61 +97,64 @@ sleep:
 	li $a1, 1
 	syscall
 	
-	jr $ra		# jump back to calling subroutine
-#
-# subprogram:    append_path
-# author:        Asad Ali
-# purpose:       Appends a filename to the current working directory path
-# input:         $a0 - buffer address (input/output), $a1 - filename address
-# output:        gives the file name with current working path directory
-# side effects:  -
-.data
-#
-.text
-append_path:
-    addi $sp, $sp, -4   # Allocate space on the stack
-    sw $ra, 0($sp)      # Save the return address
-
-    move $t2, $a0       # Copy the current working directory address to $t2
-    append_loop:
-        lb $t3, ($t2)   # Load a character from the current working directory
-        beqz $t3, append_end  # If the character is null, end the loop
-        addi $t2, $t2, 1   # Move to the next character in the current working directory
-        j append_loop
-    append_end:
-        sb $t3, ($t2)      # Replace the null character with the path separator
-
-    append_filename:
-        lb $t3, ($a1)      # Load a character from the filename
-        beqz $t3, append_exit  # If the character is null, exit the loop
-        sb $t3, ($t2)      # Append the character to the current working directory
-        addi $t2, $t2, 1   # Move to the next character in the current working directory
-        addi $a1, $a1, 1   # Move to the next character in the filename
-        j append_filename
-
-    append_exit:
-        lw $ra, 0($sp)     # Restore the return address
-        addi $sp, $sp, 4   # Deallocate space on the stack
-        jr $ra             # Return to the calling routine    
+	jr $ra		# jump back to calling subroutine    
 #
 # subprogram:	encryption_subroutine
 # author: 		Asad Ali
-# purpose: 		Takes input from data stored in a file and encrypts it. 
+# purpose: 		Takes input from user and encrypts it. 
 # input: 		$a0, filename.
 # output: 		stores the encrypted data in a file and saves it as output_file
 # side effects: 	-
 .data
-outfile: .asciiz "output_file"
+output_file: .asciiz "/home/a7d/snow/02-code/mips/securecrypt-mips/encrypted.txt"
 eprompt: .asciiz " Enter the Data:\n "
+input_buffer: .space 128
+key: .word 0x55      # XOR encryption key
+
 .text
 encryption_subroutine:
 	la $a0, eprompt
 	jal print_string
 
-	jal manual_input
+    	# Read the input from the user
+    	li $v0, 8
+    	la $a0, input_buffer
+    	li $a1, 128
+    	syscall
 
-	
+    # Open the output file for writing
+    li $v0, 13
+    la $a0, output_file
+    li $a1, 1    # 1 for write mode
+    li $a2, 0    # Permissions (ignored)
+    syscall
+    move $s0, $v0    # Save the file descriptor
 
+    # Encrypt and write the data to the file
+    la $t0, input_buffer
+    la $t1, key
+loop:
+    lb $t2, ($t0)      # Load a byte from input
+    beqz $t2, done     # Exit the loop if end of input
+    lw $t3, ($t1)      # Load the encryption key
+    xor $t2, $t2, $t3  # XOR operation
+    sb $t2, ($t0)      # Store the encrypted byte
+    addiu $t0, $t0, 1  # Increment input pointer
+    j loop
+
+done:
+    # Write the encrypted data to the file
+    li $v0, 15
+    move $a0, $s0
+    la $a1, input_buffer
+    li $a2, 128
+    syscall
+
+    # Close the file
+    li $v0, 16
+    move $a0, $s0
+    syscall
+    
 	jal sleep
 	j main_menu
 #
@@ -164,15 +165,55 @@ encryption_subroutine:
 # output:        -
 # side effects:  Makes an output file & stores the decrypted data in that file.
 .data
-dprompt: .asciiz "\nDecryption_subroutine is still in progress. \n"
+dprompt: .asciiz"\nEnter the encrypted Message:-\n"
+decipher: .asciiz "/home/a7d/snow/02-code/mips/securecrypt-mips/deciphered.txt"
 .text
 decryption_subroutine:
+	# Print out dprompt on the Output Screen
 	la $a0, dprompt
 	jal print_string
 	
+    	# Read the input from the user
+    	li $v0, 8
+    	la $a0, input_buffer
+    	li $a1, 128
+    	syscall
+
+    # Open the output file for writing
+    li $v0, 13
+    la $a0, decipher
+    li $a1, 1    # 1 for write mode
+    li $a2, 0    # Permissions (ignored)
+    syscall
+    move $s0, $v0    # Save the file descriptor
+
+    # Encrypt and write the data to the file
+    la $t0, input_buffer
+    la $t1, key
+dloop:
+    lb $t2, ($t0)      # Load a byte from input
+    beqz $t2, done     # Exit the loop if end of input
+    lw $t3, ($t1)      # Load the encryption key
+    xor $t2, $t2, $t3  # XOR operation
+    sb $t2, ($t0)      # Store the encrypted byte
+    addiu $t0, $t0, 1  # Increment input pointer
+    j dloop
+
+ddone:
+    # Write the encrypted data to the file
+    li $v0, 15
+    move $a0, $s0
+    la $a1, input_buffer
+    li $a2, 128
+    syscall
+
+    # Close the file
+    li $v0, 16
+    move $a0, $s0
+    syscall
+    
 	jal sleep
 	j main_menu
-	
 #
 # subprogram:    exit_program
 # author:        Asad Ali
@@ -187,99 +228,7 @@ exit_program:
     # Exit program
     li $v0, 10
     syscall
-#
-# subprogram:    get_current_directory
-# author:        Asad Ali
-# purpose:       Retrieves the path of current working directory
-# input:         -
-# output:        -
-# side effects:  -
-.data
-#
-.text
-get_current_directory:
-    li $v0, 17          # Load the syscall code for getting the current working directory
-    syscall             # Perform the syscall
-    jr $ra              # Return to the calling routine
-#
-# subprogram: 	 manual_input
-# author:        Asad Ali
-# purpose:       Creates and saves the data entered by user in a file called "maninp.txt
-# input:         -
-# output:        -
-# side effects:  -
-.data
-input_buffer: .space 512
-.text
-manual_input:
-	# Take input in space "input_buffer" 
-	li $v0, 8
-	la $a0, input_buffer
-	li $a1, 512
-	syscall
-
-	# Return to the calling subroutine
-	jr $ra
-	
-#
-# subprogram:    new_file
-# author:        Asad Ali
-# purpose:       Creates and saves the data entered by user in a file called "maninp.txt
-# input:         -
-# output:        -
-# side effects:  -
-.data
-temp_filename: .asciiz "/home/a7d/snow/02-code/mips/encrypt-files/maninp.txt"
-a_filename: .asciiz "test.txt"
-temp_save_ok: .asciiz " your manual input is saved in a temporary file named "
-nline: .asciiz "\n"
-bufferx:     .space 256             # Allocate space for storing the current directory path
-
-.text
-new_file:
-    li $v0, 17
-    syscall
-    
-    move $a0, $v0
-    la $a1, a_filename
-    jal append_path
-
-    li $v0, 4
-    la $a0, a_filename
-    syscall
-
-    # Open the file
-    li $v0, 13
-    la $a0, temp_filename
-    li $a1, 1  # create a new file in write mode
-    li $a2, 0   # file permission: default
-    syscall
-    move $s0, $v0 # store file descriptor in $s0
-
-    # Write user input to file
-    li $v0, 15
-    move $a0, $s0
-    la $a1, buffer
-    li $a2, 256
-    syscall
-
-    # close the opened file
-    li $v0, 16
-    move $a0, $s0
-    syscall
-
-    # Tell the user. 
-    li $v0, 4
-    la $a0, temp_save_ok
-    syscall
-    la $a0, temp_filename
-    syscall
-    la $a0, nline
-    syscall
-    # Program should wait for some seconds then jump to encrypt subprogram
-#    j encryption_subroutine
-#
-#
+#	
 # subprogram: 	 print_string
 # author:        Asad Ali
 # purpose:       Prints the string provided in argument
@@ -335,8 +284,4 @@ main_menu:
 	beqz $t0, exit_program
 	beq $t0, 1, encryption_subroutine
 	beq $t0, 2, decryption_subroutine
-	j invalid_input
-	
-
-
-
+	jr $ra
